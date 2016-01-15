@@ -11,6 +11,8 @@ namespace TreeGen
 	{
 		public AnimationCurve RadiusAlongCurve = new AnimationCurve(new Keyframe(0.0f, 0.15f),
 																	new Keyframe(1.0f, 0.15f)),
+							  RadiusAroundCurve = new AnimationCurve(new Keyframe(0.0f, 1.0f),
+																	 new Keyframe(1.0f, 1.0f)),
 							  RadiusVarianceAlongCurve = new AnimationCurve(new Keyframe(0.0f, 0.02f),
 																			new Keyframe(1.0f, 0.02f));
 		public int CurveDivisionsAlong = 30,
@@ -46,7 +48,7 @@ namespace TreeGen
 
 			//Generate the mesh.
 			CurveMeshGenerator.GenerateMesh(mf.sharedMesh, Curve,
-											RadiusAlongCurve, RadiusVarianceAlongCurve,
+											RadiusAlongCurve, RadiusAroundCurve, RadiusVarianceAlongCurve,
 											Seed, CurveDivisionsAlong, CurveDivisionsAround);
 		}
 	}

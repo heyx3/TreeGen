@@ -88,9 +88,10 @@ namespace TreeGen
 			mesh.tangents = tangents;
 		}
 
-
 		public static void GenerateMesh(Mesh m, Curve c,
-										AnimationCurve radiusAlongCurve, AnimationCurve radiusVariance,
+										AnimationCurve radiusAlongCurve,
+										AnimationCurve radiusAroundCurve,
+										AnimationCurve radiusVariance,
 										int seed, int divisionsAlong = 20, int divisionsAround = 5)
 		{
 			Rand.seed = seed;
@@ -131,7 +132,9 @@ namespace TreeGen
 
 				for (int j = 0; j < divisionsAround; ++j)
 				{
-					float radius = radiusBase + Rand.Range(-variance, variance);
+					float jLerp = (float)j / (float)(divisionsAround - 1);
+					float radius = radiusAroundCurve.Evaluate(jLerp) *
+								   (radiusBase + Rand.Range(-variance, variance));
 					
 					int index = j + (i * divisionsAround);
 					meshPoses[index] = valAndDerivative.Value + (perp * radius);

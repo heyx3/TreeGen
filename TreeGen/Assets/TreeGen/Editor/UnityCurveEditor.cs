@@ -17,6 +17,8 @@ public class UnityCurveEditor : Editor
 	public static Transform NewBranch = null;
 	private static MeshCollider myMC = null;
 
+	private bool fixUnityBullshit = false;
+
 
 	public override void OnInspectorGUI()
 	{
@@ -55,6 +57,7 @@ public class UnityCurveEditor : Editor
 
 		if (GUILayout.Button("Add Control Point"))
 		{
+			Undo.RecordObject(curve, "Add Control Point");
 			curve.Curve.AddControlPoint();
 			SceneView.RepaintAll();
 		}
@@ -70,48 +73,39 @@ public class UnityCurveEditor : Editor
 				DestroyImmediate(myMC);
 				NewBranch = null;
 			}
+			GUILayout.Space(12.0f);
 		}
-		else if (GUILayout.Button("Place new branch"))
+		else
 		{
-			GameObject bo = new GameObject("Branch");
-			
-			UnityCurve uc = bo.AddComponent<UnityCurve>();
-			uc.DrawCurveGizmo = false;
-			uc.Curve = new Curve(curve.Curve.Points.ToList());
-
-			CurveMesh cmOld = curve.GetComponent<CurveMesh>();
-			if (cmOld != null)
+			if (GUILayout.Button("Place new branch"))
 			{
-				CurveMesh cm = bo.AddComponent<CurveMesh>();
-				cm.RadiusAlongCurve = new AnimationCurve(cmOld.RadiusAlongCurve.keys.ToArray());
-				cm.RadiusVarianceAlongCurve = new AnimationCurve(cmOld.RadiusVarianceAlongCurve.keys.ToArray());
-				cm.CurveDivisionsAlong = cmOld.CurveDivisionsAlong;
-				cm.CurveDivisionsAround = cmOld.CurveDivisionsAround;
-
-				cm.OnValidate();
+				fixUnityBullshit = true;
+				SetInspectorLocked(true);
+				AddBranchTo(curve, curve);
 			}
-
-			MeshRenderer mrOld = curve.GetComponent<MeshRenderer>();
-			if (mrOld != null)
+			if (GUILayout.Button("Copy this branch"))
 			{
-				MeshRenderer mr = bo.AddComponent<MeshRenderer>();
-				mr.material = mrOld.sharedMaterial;
+				SetInspectorLocked(true);
+
+				Transform parent = curve.transform.parent;
+				if (parent == null)
+				{
+					Debug.LogError("This object does not have a parent");
+				}
+				else
+				{
+					UnityCurve ucP = parent.GetComponent<UnityCurve>();
+					if (ucP == null)
+					{
+						Debug.LogError("Immediate parent object \"" + parent.gameObject.name +
+									   "\" doesn't have a UnityCurve component");
+					}
+					else
+					{
+						AddBranchTo(ucP, curve);
+					}
+				}
 			}
-
-			//Add a mesh collider to this curve for ray-casting.
-			myMC = curve.GetComponent<MeshCollider>();
-			if (myMC == null)
-			{
-				myMC = curve.gameObject.AddComponent<MeshCollider>();
-			}
-			myMC.convex = true;
-
-
-			SetInspectorLocked(true);
-
-			NewBranch = bo.transform;
-			NewBranch.localScale = curve.transform.localScale * 0.5f;
-			NewBranch.parent = curve.transform;
 		}
 
 
@@ -153,7 +147,6 @@ public class UnityCurveEditor : Editor
 			}
 		}
 	}
-
 	public void OnSceneGUI()
 	{
 		UnityCurve curve = (UnityCurve)target;
@@ -192,14 +185,14 @@ public class UnityCurveEditor : Editor
 			CurveMesh cm = curve.GetComponent<CurveMesh>();
 			if (cm != null)
 			{
-				Transform cmT = cm.transform;
-
 				RaycastHit hitInfo = new RaycastHit();
 				Ray r = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
 				if (myMC.Raycast(r, out hitInfo, 99999.0f))
 				{
 					NewBranch.position = hitInfo.point;
-					NewBranch.rotation = Quaternion.FromToRotation(cmT.up, hitInfo.normal);
+					NewBranch.rotation = Quaternion.FromToRotation((curve.Curve.Points[curve.Curve.Points.Count - 1] -
+																	curve.Curve.Points[0]).normalized,
+																   hitInfo.normal);
 
 					UnityCurve uc = NewBranch.GetComponent<UnityCurve>();
 					uc.Curve.Points[0] = NewBranch.worldToLocalMatrix.MultiplyPoint(hitInfo.point);
@@ -208,15 +201,86 @@ public class UnityCurveEditor : Editor
 
 			if (Event.current.type == EventType.MouseDown && Event.current.button == 0)
 			{
+				Undo.RegisterCreatedObjectUndo(NewBranch.gameObject, "Create Branch");
+
 				NewBranch = null;
 				DestroyImmediate(myMC);
 				SetInspectorLocked(false);
 			}
 		}
 	}
-
-	private void SetInspectorLocked(bool val)
+	private void OnDestroy()
 	{
-		UnityEditor.ActiveEditorTracker.sharedTracker.isLocked = val;
+		if (fixUnityBullshit)
+		{
+			fixUnityBullshit = false;
+			Debug.Log("Quit");
+			return;
+		}
+
+		Debug.Log("OnDestroyCurveEditor");
+
+		if (NewBranch != null)
+		{
+			DestroyImmediate(NewBranch.gameObject);
+			NewBranch = null;
+		}
+		if (myMC != null)
+		{
+			DestroyImmediate(myMC);
+			myMC = null;
+		}
+	}
+
+	private static void SetInspectorLocked(bool val)
+	{
+		ActiveEditorTracker.sharedTracker.isLocked = val;
+	}
+	
+	private static void AddBranchTo(UnityCurve root, UnityCurve toCopy)
+	{
+		GameObject bo = new GameObject("Branch");
+			
+		UnityCurve uc = bo.AddComponent<UnityCurve>();
+		uc.DrawCurveGizmo = false;
+		uc.Curve = new Curve(toCopy.Curve.Points.ToList());
+
+		CurveMesh cmOld = toCopy.GetComponent<CurveMesh>();
+		if (cmOld != null)
+		{
+			CurveMesh cm = bo.AddComponent<CurveMesh>();
+			cm.RadiusAlongCurve = new AnimationCurve(cmOld.RadiusAlongCurve.keys.ToArray());
+			cm.RadiusAroundCurve = new AnimationCurve(cmOld.RadiusAroundCurve.keys.ToArray());
+			cm.RadiusVarianceAlongCurve = new AnimationCurve(cmOld.RadiusVarianceAlongCurve.keys.ToArray());
+			cm.CurveDivisionsAlong = cmOld.CurveDivisionsAlong;
+			cm.CurveDivisionsAround = cmOld.CurveDivisionsAround;
+
+			cm.OnValidate();
+		}
+
+		MeshRenderer mrOld = toCopy.GetComponent<MeshRenderer>();
+		if (mrOld != null)
+		{
+			MeshRenderer mr = bo.AddComponent<MeshRenderer>();
+			mr.sharedMaterial = mrOld.sharedMaterial;
+		}
+
+		//Add a mesh collider to this curve for ray-casting.
+		myMC = root.GetComponent<MeshCollider>();
+		if (myMC == null)
+		{
+			myMC = root.gameObject.AddComponent<MeshCollider>();
+		}
+
+		NewBranch = bo.transform;
+		if (root == toCopy)
+		{
+			NewBranch.localScale = root.transform.localScale * 0.5f;
+		}
+		else
+		{
+			NewBranch.localScale = toCopy.transform.localScale;
+		}
+		NewBranch.parent = root.transform;
 	}
 }

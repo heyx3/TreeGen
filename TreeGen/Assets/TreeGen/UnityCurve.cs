@@ -74,9 +74,7 @@ namespace TreeGen
 			{
 				Transform tr = transform;
 				Matrix4x4 toWorld = tr.localToWorldMatrix;
-
-				Vector3 worldP0 = toWorld.MultiplyPoint(Curve.Points[0]),
-						worldPos = tr.position;
+				Vector3 worldP0 = toWorld.MultiplyPoint(Curve.Points[0]);
 
 				tr.position = worldP0;
 				for (int i = Curve.Points.Count - 1; i >= 0; --i)
