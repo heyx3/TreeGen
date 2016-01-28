@@ -170,10 +170,18 @@ public class UnityCurveEditor : Editor
 
 				curve.OnValidate();
 
+				//Update the curve's mesh if it exists.
 				CurveMesh cm = curve.GetComponent<CurveMesh>();
 				if (cm != null)
 				{
 					cm.OnValidate();
+				}
+				//Update any foliage meshes.
+				for (int i = 0; i < tr.childCount; ++i)
+				{
+					CurveFoliage fol = tr.GetChild(i).GetComponent<CurveFoliage>();
+					if (fol != null)
+						fol.OnValidate();
 				}
 
 				SceneView.RepaintAll();
@@ -217,8 +225,6 @@ public class UnityCurveEditor : Editor
 			Debug.Log("Quit");
 			return;
 		}
-
-		Debug.Log("OnDestroyCurveEditor");
 
 		if (NewBranch != null)
 		{
