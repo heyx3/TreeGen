@@ -39,6 +39,8 @@ public class CurveMeshEditor : Editor
 			foliageO.AddComponent<MeshFilter>();
 			foliageO.AddComponent<MeshRenderer>();
 			foliageO.AddComponent<CurveFoliage>();
+
+			Selection.activeObject = foliageO;
 		}
 
 		GUILayout.Space(25.0f);
@@ -73,7 +75,10 @@ public class CurveMeshEditor : Editor
 		{
 			string path = EditorUtility.SaveFolderPanel("Choose a new folder to save the baked data", "",
 														"Tree1");
-			BakeToFile(path);
+			if (path != "")
+			{
+				BakeToFile(path);
+			}
 		}
 	}
 
@@ -118,9 +123,10 @@ public class CurveMeshEditor : Editor
 
 		//Export the current tree object to a prefab, then replace it
 		//    with a new object that just has the baked meshes.
-		
 		PrefabUtility.CreatePrefab(PathUtils.GetRelativePath(prefabPath, "Assets"),
 								   thisCM.gameObject);
+
+		AssetDatabase.Refresh();
 		
 		Transform bakedObj = new GameObject("Baked " + thisCM.gameObject.name).transform;
 		
@@ -135,6 +141,10 @@ public class CurveMeshEditor : Editor
 		mf.sharedMesh = AssetDatabase.LoadAssetAtPath<Mesh>(PathUtils.GetRelativePath(trunkPath, "Assets"));
 		MeshRenderer mr = trunkChild.gameObject.AddComponent<MeshRenderer>();
 		mr.sharedMaterial = thisCM.GetComponent<MeshRenderer>().sharedMaterial;
+		//For some reason, the trunk mesh needs to flip its X scale.
+		trunkChild.localScale = new Vector3(-trunkChild.localScale.x,
+											trunkChild.localScale.y,
+											trunkChild.localScale.z);
 
 		if (cFs.Length > 0)
 		{
@@ -145,14 +155,17 @@ public class CurveMeshEditor : Editor
 																						  "Assets"));
 			mr = foliageChild.gameObject.AddComponent<MeshRenderer>();
 			mr.sharedMaterial = cFs[0].GetComponent<MeshRenderer>().sharedMaterial;
+			
+			//For some reason, the foliage mesh needs to flip its X scale.
+			foliageChild.localScale = new Vector3(-foliageChild.localScale.x,
+												  foliageChild.localScale.y,
+												  foliageChild.localScale.z);
 		}
 
 		DestroyImmediate(oldObj.gameObject);
 	}
 	private Mesh CreateMesh(IEnumerable<MeshFilter> meshes, Transform root)
 	{
-		//TODO: Fix. Step through line 184.
-
 		Matrix4x4 toRootLocal = root.worldToLocalMatrix;
 
 
@@ -169,6 +182,7 @@ public class CurveMeshEditor : Editor
 		Vector4[] tangents = new Vector4[nVerts];
 		Vector2[] uvs = new Vector2[nVerts];
 		int[] indices = new int[nIndices];
+
 		int vOffset = 0,
 			iOffset = 0;
 		foreach (MeshFilter mf in meshes)
@@ -179,17 +193,22 @@ public class CurveMeshEditor : Editor
 					  mNormals = mf.sharedMesh.normals;
 			Vector4[] mTangents = mf.sharedMesh.tangents;
 			Vector2[] mUVs = mf.sharedMesh.uv;
-			int[] mIndices = mf.sharedMesh.triangles;
-
 			for (int i = 0; i < mf.sharedMesh.vertexCount; ++i)
 			{
 				poses[vOffset + i] = toRootLocal.MultiplyPoint(toWorld.MultiplyPoint(mPoses[i]));
-				normals[vOffset + i] = toRootLocal.MultiplyPoint(toWorld.MultiplyPoint(mNormals[i]));
-				tangents[vOffset + i] = toRootLocal.MultiplyPoint(toWorld.MultiplyPoint(mTangents[i]));
+				normals[vOffset + i] = toRootLocal.MultiplyVector(toWorld.MultiplyVector(mNormals[i]));
+				tangents[vOffset + i] = toRootLocal.MultiplyVector(toWorld.MultiplyVector(mTangents[i]));
+
 				uvs[vOffset + i] = mUVs[i];
-				indices[iOffset + i] = mIndices[i];
 			}
-			vOffset += poses.Length;
+
+			int[] mIndices = mf.sharedMesh.triangles;
+			for (int i = 0; i < mIndices.Length; ++i)
+			{
+				indices[iOffset + i] = vOffset + mIndices[i];
+			}
+
+			vOffset += mPoses.Length;
 			iOffset += mIndices.Length;
 		}
 		
@@ -202,7 +221,7 @@ public class CurveMeshEditor : Editor
 		outM.uv = uvs;
 		outM.triangles = indices;
 
-		outM.UploadMeshData(true);
+		outM.UploadMeshData(false);
 		return outM;
 	}
 	private void ExportOBJ(Mesh m, string filePath, string meshName, string materialName)
@@ -235,7 +254,9 @@ public class CurveMeshEditor : Editor
 		for (int i = 0; i < triangles.Length; i += 3)
 		{
 			sb.Append(string.Format("f {0}/{0}/{0} {1}/{1}/{1} {2}/{2}/{2}\n",
-				triangles[i] + 1, triangles[i + 1] + 1, triangles[i + 2] + 1));
+					  triangles[i] + 1,
+					  triangles[i + 1] + 1,
+					  triangles[i + 2] + 1));
 		}
 
 		//Write the string out to a file.
