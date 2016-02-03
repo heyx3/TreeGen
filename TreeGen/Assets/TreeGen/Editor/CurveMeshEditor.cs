@@ -91,8 +91,7 @@ public class CurveMeshEditor : Editor
 		folder.Create();
 		string name = Path.GetFileNameWithoutExtension(folderPath);
 		string trunkPath = Path.Combine(folderPath, name + " Trunk.obj"),
-			   foliagePath = Path.Combine(folderPath, name + " Foliage.obj"),
-			   prefabPath = Path.Combine(folderPath, name + "Original.prefab");
+			   foliagePath = Path.Combine(folderPath, name + " Foliage.obj");
 
 		//Create one big mesh for all the branches.
 		CurveMesh[] cMs = thisCM.GetComponentsInChildren<CurveMesh>();
@@ -121,19 +120,21 @@ public class CurveMeshEditor : Editor
 		}
 
 
-		//Export the current tree object to a prefab, then replace it
-		//    with a new object that just has the baked meshes.
-		PrefabUtility.CreatePrefab(PathUtils.GetRelativePath(prefabPath, "Assets"),
-								   thisCM.gameObject);
+		//Replace the current tree object with one that just has the baked assets.
+		//Put the original object inside the new one and deactivate it.
 
-		AssetDatabase.Refresh();
-		
 		Transform bakedObj = new GameObject("Baked " + thisCM.gameObject.name).transform;
 		
 		Transform oldObj = thisCM.transform;
 		bakedObj.position = oldObj.position;
 		bakedObj.rotation = oldObj.rotation;
 		bakedObj.localScale = oldObj.localScale;
+
+		oldObj.parent = bakedObj;
+		oldObj.localPosition = Vector3.zero;
+		oldObj.localRotation = Quaternion.identity;
+		oldObj.localScale = Vector3.one;
+		oldObj.gameObject.SetActive(false);
 		
 		Transform trunkChild = new GameObject("Trunk").transform;
 		trunkChild.SetParent(bakedObj, false);
@@ -161,14 +162,9 @@ public class CurveMeshEditor : Editor
 												  foliageChild.localScale.y,
 												  foliageChild.localScale.z);
 		}
-
-		DestroyImmediate(oldObj.gameObject);
 	}
 	private Mesh CreateMesh(IEnumerable<MeshFilter> meshes, Transform root)
 	{
-		Matrix4x4 toRootLocal = root.worldToLocalMatrix;
-
-
 		int nVerts = 0,
 			nIndices = 0;
 		foreach (MeshFilter mf in meshes)
@@ -182,6 +178,8 @@ public class CurveMeshEditor : Editor
 		Vector4[] tangents = new Vector4[nVerts];
 		Vector2[] uvs = new Vector2[nVerts];
 		int[] indices = new int[nIndices];
+
+		Matrix4x4 toRootLocal = root.worldToLocalMatrix;
 
 		int vOffset = 0,
 			iOffset = 0;
