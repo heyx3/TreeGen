@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 
@@ -7,6 +8,7 @@ namespace TreeGen
 {
 	[RequireComponent(typeof(UnityCurve))]
 	[RequireComponent(typeof(MeshFilter))]
+	[ExecuteInEditMode]
 	public class CurveMesh : MonoBehaviour
 	{
 		public AnimationCurve RadiusAlongCurve = new AnimationCurve(new Keyframe(0.0f, 0.15f),
@@ -20,8 +22,8 @@ namespace TreeGen
 		public int Seed = 978342;
 
 
-		public Curve Curve { get { if (uc == null) uc = GetComponent<UnityCurve>(); return uc.Curve; } }
-		public Mesh Mesh { get { if (mf == null) mf = GetComponent<MeshFilter>(); return mf.sharedMesh; } }
+		public Curve Curve { get { return uc.Curve; } }
+		public Mesh Mesh { get { return mf.sharedMesh; } }
 
 		private UnityCurve uc = null;
 		private MeshFilter mf = null;
@@ -31,20 +33,19 @@ namespace TreeGen
 		{
 			uc = GetComponent<UnityCurve>();
 			mf = GetComponent<MeshFilter>();
+
+			mf.sharedMesh = new Mesh();
 		}
 
 		public void OnValidate()
 		{
+			if (mf == null || mf.sharedMesh == null)
+			{
+				Awake();
+			}
+
 			CurveDivisionsAlong = Mathf.Max(2, CurveDivisionsAlong);
 			CurveDivisionsAround = Mathf.Max(3, CurveDivisionsAround);
-
-			//Get components.
-			uc = GetComponent<UnityCurve>();
-			mf = GetComponent<MeshFilter>();
-			if (mf.sharedMesh  == null)
-			{
-				mf.sharedMesh = new UnityEngine.Mesh();
-			}
 
 			//Generate the mesh.
 			CurveMeshGenerator.GenerateMesh(mf.sharedMesh, Curve,

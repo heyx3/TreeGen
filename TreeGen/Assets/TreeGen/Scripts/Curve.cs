@@ -11,7 +11,7 @@ namespace TreeGen
 	/// Source: https://en.wikipedia.org/wiki/B%C3%A9zier_curve#Polynomial_form
 	/// </summary>
 	[Serializable]
-	public class Curve
+	public struct Curve
 	{
 		public struct ValueAndDerivative
 		{
@@ -71,7 +71,7 @@ namespace TreeGen
 		public List<Vector3> Points;
 
 
-		public Curve()							 : this(Vector3.zero, Vector3.one)		  { }
+		//public Curve()							 : this(Vector3.zero, Vector3.one)		  { }
 		public Curve(Vector3 start, Vector3 end) : this(new List<Vector3> { start, end }) { }
 		public Curve(List<Vector3> points)												  { Points = points; }
 

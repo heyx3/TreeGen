@@ -11,6 +11,79 @@ using TreeGen;
 [CustomEditor(typeof(UnityCurve))]
 public class UnityCurveEditor : Editor
 {
+	/// <summary>
+	/// Returns the number of solutions and outputs those solutions into x0 and x1.
+	/// </summary>
+	private static int SolveQuadratic(float a, float b, float c, out float x0, out float x1)
+	{
+		x0 = float.NaN;
+		x1 = float.NaN;
+
+		float discr = (b * b) - (4.0f * a * c);
+
+		if (discr < 0.0f)
+			return 0;
+
+		float denom = 0.5f / a;
+		float q = -b * denom;
+
+		if (discr == 0.0f)
+		{
+			x0 = q;
+			return 1;
+		}
+
+		float sqrt = Mathf.Sqrt(discr) * denom;
+
+		x0 = q + sqrt;
+		x1 = q - sqrt;
+		return 2;
+	}
+	/// <summary>
+	/// Returns the number of intersections, and outputs those intersections into the given out parameters.
+	/// </summary>
+	private static int RaySphereIntersect(Ray r, Vector3 spherePos, float sphereR,
+										  out Vector3 x0, out float t0,
+										  out Vector3 x1, out float t1)
+	{
+		x0 = Vector3.zero;
+		x1 = Vector3.zero;
+
+		Vector3 sphereToRay = r.origin - spherePos;
+
+		float a = Vector3.Dot(r.direction, r.direction),
+			  b = 2.0f * Vector3.Dot(r.direction, sphereToRay),
+			  c = Vector3.Dot(sphereToRay, sphereToRay) - (sphereR * sphereR);
+
+		int nVals = SolveQuadratic(a, b, c, out t0, out t1);
+		if (nVals > 0)
+			x0 = r.origin + (r.direction * t0);
+		if (nVals > 1)
+			x1 = r.origin + (r.direction * t1);
+
+		return nVals;
+	}
+	/// <summary>
+	/// Gets the distance the ray hits the given sphere at.
+	/// Returns "float.MaxValue" if there is no hit.
+	/// </summary>
+	private static float DistanceToSphere(Ray r, Vector3 spherePos, float sphereR)
+	{
+		Vector3 x0, x1;
+		float t0, t1;
+
+		int nHits = RaySphereIntersect(r, spherePos, sphereR, out x0, out t0, out x1, out t1);
+		if (nHits == 0)
+			return float.MaxValue;
+		if (nHits == 1)
+			return t0;
+		if (nHits == 2)
+			return Mathf.Min(t0, t1);
+
+		throw new InvalidOperationException("More than 2 intersections??");
+	}
+
+
 	public int SelectedPoint = -1;
 	
 
@@ -150,44 +223,8 @@ public class UnityCurveEditor : Editor
 	public void OnSceneGUI()
 	{
 		UnityCurve curve = (UnityCurve)target;
-		if (SelectedPoint >= 0 && SelectedPoint < curve.Curve.Points.Count)
-		{
-			Transform tr = curve.transform;
-			Matrix4x4 trMat = tr.localToWorldMatrix;
 
-			Vector3 oldPos = curve.Curve.Points[SelectedPoint];
-			Vector3 oldPosTr = trMat.MultiplyPoint(oldPos);
-
-			Vector3 newPos = Handles.PositionHandle(oldPosTr,
-													Tools.pivotRotation == PivotRotation.Global ?
-														Quaternion.identity :
-														tr.rotation);
-			curve.Curve.Points[SelectedPoint] = trMat.inverse.MultiplyPoint(newPos);
-
-			if (oldPos != curve.Curve.Points[SelectedPoint])
-			{
-				Undo.RecordObject(curve, "Edit curve on \"" + curve.gameObject.name + "\"");
-
-				curve.OnValidate();
-
-				//Update the curve's mesh if it exists.
-				CurveMesh cm = curve.GetComponent<CurveMesh>();
-				if (cm != null)
-				{
-					cm.OnValidate();
-				}
-				//Update any foliage meshes.
-				for (int i = 0; i < tr.childCount; ++i)
-				{
-					CurveFoliage fol = tr.GetChild(i).GetComponent<CurveFoliage>();
-					if (fol != null)
-						fol.OnValidate();
-				}
-
-				SceneView.RepaintAll();
-			}
-		}
-
+		//Place the new branch.
 		if (NewBranch != null)
 		{
 			CurveMesh cm = curve.GetComponent<CurveMesh>();
@@ -214,6 +251,80 @@ public class UnityCurveEditor : Editor
 				NewBranch = null;
 				DestroyImmediate(myMC);
 				SetInspectorLocked(false);
+			}
+		}
+		//Edit the curve points.
+		else
+		{
+			bool movedPoint = false;
+			if (SelectedPoint >= 0 && SelectedPoint < curve.Curve.Points.Count)
+			{
+				Transform tr = curve.transform;
+				Matrix4x4 trMat = tr.localToWorldMatrix;
+
+				Vector3 oldPos = curve.Curve.Points[SelectedPoint];
+				Vector3 oldPosTr = trMat.MultiplyPoint(oldPos);
+
+				Vector3 newPos = Handles.PositionHandle(oldPosTr,
+														Tools.pivotRotation == PivotRotation.Global ?
+															Quaternion.identity :
+															tr.rotation);
+				curve.Curve.Points[SelectedPoint] = trMat.inverse.MultiplyPoint(newPos);
+
+				if (oldPos != curve.Curve.Points[SelectedPoint])
+				{
+					movedPoint = true;
+					Undo.RecordObject(curve, "Edit curve on \"" + curve.gameObject.name + "\"");
+
+					curve.OnValidate();
+
+					//Update the curve's mesh if it exists.
+					CurveMesh cm = curve.GetComponent<CurveMesh>();
+					if (cm != null)
+					{
+						cm.OnValidate();
+					}
+					//Update any foliage meshes.
+					for (int i = 0; i < tr.childCount; ++i)
+					{
+						CurveFoliage fol = tr.GetChild(i).GetComponent<CurveFoliage>();
+						if (fol != null)
+							fol.OnValidate();
+					}
+
+					SceneView.RepaintAll();
+				}
+			}
+
+			//See if a new point was clicked.
+			if (!movedPoint)
+			{
+				if (Event.current.type == EventType.MouseDown)
+				{
+					//Get the closest point that was intersected.
+
+					Ray mRay = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
+					float dist = float.MaxValue;
+					int point = -1;
+
+					Matrix4x4 toWorld = curve.transform.localToWorldMatrix;
+
+					for (int i = 0; i < curve.Curve.Points.Count; ++i)
+					{
+						Vector3 worldP = toWorld.MultiplyPoint(curve.Curve.Points[i]);
+						float tempDist = DistanceToSphere(mRay, worldP, curve.GizmoSize);
+						if (tempDist < dist)
+						{
+							point = i;
+							dist = tempDist;
+						}
+					}
+
+					if (point > -1)
+					{
+						SelectedPoint = point;
+					}
+				}
 			}
 		}
 	}
