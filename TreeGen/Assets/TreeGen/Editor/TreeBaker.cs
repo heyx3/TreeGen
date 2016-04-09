@@ -36,7 +36,7 @@ namespace TreeGen
 
 			//Filter out any objects that don't contain a tree.
 			selectedBranches =
-				selectedObjs.Where(go => (go.GetComponentsInChildren<CurveMesh>().FirstOrDefault() != null)).ToArray();
+				selectedObjs.Where(go => (go.GetComponentsInChildren<TreeCurve>().FirstOrDefault() != null)).ToArray();
 		}
 
 
@@ -44,10 +44,10 @@ namespace TreeGen
 		private void InitMats()
 		{
 			branchMat = null;
-			CurveMesh[] cms = selectedBranches.GetComponents<CurveMesh>(true).ToArray();
-			if (cms.Length > 0)
+			TreeCurve[] tcs = selectedBranches.GetComponents<TreeCurve>(true).ToArray();
+			if (tcs.Length > 0)
 			{
-				branchMat = cms.GetComponents<CurveMesh, MeshRenderer>().First().sharedMaterial;
+				branchMat = tcs.GetComponents<TreeCurve, MeshRenderer>().First().sharedMaterial;
 			}
 
 			foliageMat = null;
@@ -99,14 +99,8 @@ namespace TreeGen
 				string name = Path.GetFileNameWithoutExtension(folderPath);
 				string trunkPath = Path.Combine(folderPath, name + " Trunk.obj"),
 					   foliagePath = Path.Combine(folderPath, name + " Foliage.obj");
-
-
-				const string msg = "Are you sure you want to bake these trees into a single mesh? " +
-								   "It will delete the tree objects in the process!";
-				if (EditorUtility.DisplayDialog("Confirm baking", msg, "Yes", "Cancel"))
-				{
-					Bake(trunkPath, foliagePath);
-				}
+				
+				Bake(trunkPath, foliagePath);
 			}
 		}
 
@@ -137,16 +131,16 @@ namespace TreeGen
 				rootM = selectedBranches[0].transform.worldToLocalMatrix;
 			}
 
-			IEnumerable<CurveMesh> curves = selectedBranches.SelectMany(go => go.GetComponentsInChildren<CurveMesh>());
+			IEnumerable<TreeCurve> curves = selectedBranches.SelectMany(go => go.GetComponentsInChildren<TreeCurve>());
 			
 
 			//Create one big mesh for all the branches.
-			Mesh msh = CreateMesh(curves.Select(cm => cm.GetComponent<MeshFilter>()), rootM);
+			Mesh msh = CreateMesh(curves.Select(tc => tc.GetComponent<MeshFilter>()), rootM);
 			ExportOBJ(msh, trunkMeshPath, "Trunk");
 			msh.Clear();
 
 			//Create one big mesh for all the foliage.
-			CurveFoliage[] cFs = curves.GetComponentsInChildren<CurveMesh, CurveFoliage>().RemoveDuplicates().ToArray();
+			CurveFoliage[] cFs = curves.GetComponentsInChildren<TreeCurve, CurveFoliage>().RemoveDuplicates().ToArray();
 			if (cFs.Length > 0)
 			{
 				if (cFs.Any(cf => cf.Mode == CurveFoliage.MeshModes.Point))
@@ -290,9 +284,6 @@ namespace TreeGen
 		/// <param name="meshName">The name this mesh will have in the OBJ file.</param>
 		private static void ExportOBJ(Mesh m, string filePath, string meshName)
 		{
-			//TODO: Fix bugs with this.
-
-
 			System.Text.StringBuilder sb = new System.Text.StringBuilder();
 
 			//Generate the vertex data.
@@ -305,7 +296,7 @@ namespace TreeGen
 			sb.Append("\n");
 			foreach (Vector3 v in m.normals)
 			{
-				sb.Append(string.Format("vn {0} {1} {2}\n", v.x, v.y, v.z));
+				sb.Append(string.Format("vn {0} {1} {2}\n", -v.x, v.y, v.z));
 			}
 			sb.Append("\n");
 			foreach (Vector3 v in m.uv)
@@ -323,9 +314,9 @@ namespace TreeGen
 			for (int i = 0; i < triangles.Length; i += 3)
 			{
 				sb.Append(string.Format("f {0}/{0}/{0} {1}/{1}/{1} {2}/{2}/{2}\n",
-						  triangles[i] + 1,
+						  triangles[i + 2] + 1,
 						  triangles[i + 1] + 1,
-						  triangles[i + 2] + 1));
+						  triangles[i] + 1));
 			}
 
 			//Write out the actual file.

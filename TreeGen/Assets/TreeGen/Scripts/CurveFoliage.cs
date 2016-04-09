@@ -78,8 +78,8 @@ namespace TreeGen
 				myMF = GetComponent<MeshFilter>();
 			}
 
-			UnityCurve uc = transform.parent.GetComponent<UnityCurve>();
-			Vector3[] preC = uc.Curve.PreCalculateValues();
+			TreeCurve tc = transform.parent.GetComponent<TreeCurve>();
+			Vector3[] preC = tc.Curve.PreCalculateValues();
 
 			Rand.seed = Seed;
 
@@ -95,7 +95,7 @@ namespace TreeGen
 			{
 				float t = Mathf.Lerp(MinSpawnLength, 1.0f,
 									 Mathf.Pow(Rand.value, SpawnDistribution));
-				var posAndDerivative = uc.Curve.GetValueAndDerivative(t, preC);
+				var posAndDerivative = tc.Curve.GetValueAndDerivative(t, preC);
 				posAndDerivative.Derivative.Normalize();
 				Vector3 perp = posAndDerivative.Perpendicular.normalized;
 

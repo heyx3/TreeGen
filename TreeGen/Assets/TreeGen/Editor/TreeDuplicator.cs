@@ -20,8 +20,8 @@ namespace TreeGen
 			List<GameObject> newObjs = new List<GameObject>();
 			foreach (GameObject go in selectedObjs)
 			{
-				CurveMesh cm = go.GetComponent<CurveMesh>();
-				if (cm == null)
+				TreeCurve tc = go.GetComponent<TreeCurve>();
+				if (tc == null)
 				{
 					Debug.LogWarning("Selected object \"" + go.name + "\" isn't a tree and was ignored.");
 					continue;
@@ -39,10 +39,10 @@ namespace TreeGen
 				tr2.localScale = tr.localScale;
 
 				//Remove the reference to the original object's trunk/foliage meshes.
-				foreach (CurveMesh cm2 in go2.GetComponentsInChildren<CurveMesh>().ToArray())
+				foreach (TreeCurve tc2 in go2.GetComponentsInChildren<TreeCurve>().ToArray())
 				{
-					cm2.GetComponent<MeshFilter>().sharedMesh = null;
-					cm2.OnValidate();
+					tc2.GetComponent<MeshFilter>().sharedMesh = null;
+					tc2.OnValidate();
 				}
 				foreach (CurveFoliage cf in go2.GetComponentsInChildren<CurveFoliage>().ToArray())
 				{
